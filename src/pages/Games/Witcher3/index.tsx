@@ -3,9 +3,8 @@ import {
     Shield, AlertTriangle, Map as MapIcon, CheckCircle, Skull,
     Save, Info, ChevronDown, ChevronRight, Anchor,
     BookOpen, Search, X, Maximize2, Minimize2,
-    Sparkles, MessageSquare, Send, Filter, LogIn
+    Sparkles, MessageSquare, Send, Filter, ExternalLink, CloudDownload
 } from 'lucide-react';
-import InteractiveMap from '../../../components/InteractiveMap';
 import { ChecklistItem, Phase, MapRegion } from '../../../types';
 
 
@@ -385,7 +384,12 @@ export default function WitcherCommandCenterV5() {
     const [isCodexLoading, setIsCodexLoading] = useState(false);
     const [itemAdvice, setItemAdvice] = useState<Record<string, string>>({});
     const [loadingAdvice, setLoadingAdvice] = useState<Record<string, boolean>>({});
-    const [focusedItem, setFocusedItem] = useState<ChecklistItem | null>(null);
+
+    // STEAM STATES
+    const [isSteamModalOpen, setIsSteamModalOpen] = useState(false);
+    const [steamId, setSteamId] = useState('');
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [steamError, setSteamError] = useState('');
 
     useEffect(() => {
         const saved = localStorage.getItem('witcher-command-progress');
@@ -433,16 +437,10 @@ export default function WitcherCommandCenterV5() {
     };
 
 
-    const handleSmartLocate = (e: React.MouseEvent, item: ChecklistItem, region: MapRegion) => {
+    const handleSmartLocate = (e: React.MouseEvent, region: MapRegion) => {
         e.stopPropagation();
         if (!isMapOpen) setIsMapOpen(true);
         setActiveMapRegion(region);
-        setFocusedItem(item);
-    };
-
-    const openMapExternal = () => {
-        const url = BASE_MAP_URLS[activeMapRegion];
-        window.open(url, '_blank');
     };
 
 
@@ -475,6 +473,37 @@ export default function WitcherCommandCenterV5() {
 
         setCodexResponse(safeResponse);
         setIsCodexLoading(false);
+    };
+
+    /* --- STEAM HANDLERS --- */
+    const handleSteamSync = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!steamId) return;
+
+        setIsSyncing(true);
+        setSteamError('');
+
+        try {
+            // Call local backend
+            const response = await fetch(`http://localhost:8000/api/steam/achievements/${steamId}`);
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Failed to sync');
+            }
+
+            const data = await response.json();
+            console.log("Steam Data:", data);
+            alert(`Synced! Found ${data.achievements?.length || 0} achievements. Check console for details.`);
+            setIsSteamModalOpen(false);
+
+            // TODO: Map achievements to checklist items
+
+        } catch (err: any) {
+            setSteamError(err.message);
+        } finally {
+            setIsSyncing(false);
+        }
     };
 
 
@@ -526,6 +555,14 @@ export default function WitcherCommandCenterV5() {
                 </div>
 
                 <div className="flex items-center gap-2 md:gap-3">
+                    <button
+                        onClick={() => setIsSteamModalOpen(true)}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all bg-[#1a3a5a] text-blue-200 border border-blue-500/30 hover:bg-[#2a4a6a]"
+                    >
+                        <CloudDownload className="w-4 h-4" />
+                        <span className="hidden lg:inline">Sync Steam</span>
+                    </button>
+
                     <button
                         onClick={() => setIsCodexOpen(true)}
                         className="flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all bg-[#2a2a2a] text-[#ffd700] border border-[#ffd700]/30 hover:bg-[#333]"
@@ -691,7 +728,7 @@ export default function WitcherCommandCenterV5() {
 
                                                                 <div className="grid grid-cols-3 gap-2">
                                                                     <button
-                                                                        onClick={(e) => handleSmartLocate(e, item, phase.mapRegion)}
+                                                                        onClick={(e) => handleSmartLocate(e, phase.mapRegion)}
                                                                         className="flex items-center justify-center gap-2 bg-[#2a2a2a] hover:bg-[#333] text-[#ccc] py-2 rounded text-xs transition-colors font-medium border border-[#333] hover:text-blue-400 group"
                                                                     >
                                                                         <MapIcon className="w-3.5 h-3.5 text-blue-500 group-hover:scale-110 transition-transform" />
@@ -748,43 +785,93 @@ export default function WitcherCommandCenterV5() {
                 </div>
 
 
+                {/* Right Panel: Map Actions */}
                 <div className={`
           absolute inset-0 z-30 bg-[#121212] transition-transform duration-300 md:relative md:inset-auto md:translate-x-0 flex flex-col
           ${isMapOpen ? 'translate-x-0 md:w-1/2 lg:w-7/12 border-l border-[#333]' : 'translate-x-full md:hidden w-0'}
         `}>
+                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6">
+                        <MapIcon className="w-20 h-20 text-[#333]" />
+                        <h2 className="text-2xl font-bold text-[#e0e0e0]">Interactive Map</h2>
+                        <p className="text-[#888] max-w-md">
+                            We recommend using MapGenie for the best experience.
+                            Select a region below to open it in a new tab.
+                        </p>
 
-                    <div className="h-10 bg-[#1a1a1a] flex items-center justify-between px-3 border-b border-[#333]">
-                        <span className="text-xs font-bold text-[#888] uppercase tracking-wider flex items-center gap-2">
-                            Interactive Map
-                        </span>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={openMapExternal}
-                                className="flex items-center gap-2 bg-[#a81c1c] hover:bg-[#c42121] text-white text-[10px] font-bold px-3 py-1 rounded transition-colors border border-[#ff4d4d]"
-                                title="Login / Sync features require external tab"
-                            >
-                                <LogIn className="w-3 h-3" /> Open to Login / Sync
-                            </button>
-                            <button
-                                onClick={toggleMap}
-                                className="p-1.5 hover:bg-[#333] rounded text-[#ccc] md:hidden"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
+                        <div className="grid grid-cols-1 gap-4 w-full max-w-xs">
+                            {Object.entries(BASE_MAP_URLS).map(([key, url]) => (
+                                <a
+                                    key={key}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-between px-4 py-3 bg-[#2a2a2a] hover:bg-[#a81c1c] rounded-lg border border-[#444] hover:border-[#ff4d4d] transition-all group"
+                                >
+                                    <span className="font-bold uppercase tracking-wider text-sm text-[#ccc] group-hover:text-white">
+                                        {key.replace('_', ' ')}
+                                    </span>
+                                    <ExternalLink className="w-4 h-4 text-[#666] group-hover:text-white" />
+                                </a>
+                            ))}
                         </div>
                     </div>
-
-                    <div className="flex-1 bg-black relative w-full h-full overflow-hidden">
-                        <InteractiveMap
-                            activeMapRegion={activeMapRegion}
-                            items={filteredData.flatMap(phase => phase.items)}
-                            focusedItem={focusedItem}
-                        />
-                    </div>
                 </div>
-
             </div>
 
+            {/* STEAM SYNC MODAL */}
+            {isSteamModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-[#1e1e1e] border border-[#444] rounded-xl w-full max-w-md shadow-2xl p-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                <CloudDownload className="w-6 h-6 text-blue-400" />
+                                Steam Sync
+                            </h3>
+                            <button onClick={() => setIsSteamModalOpen(false)} className="text-[#888] hover:text-white">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <p className="text-sm text-gray-400 mb-4">
+                            Enter your 64-bit Steam ID to sync achievements.
+                            <br />
+                            <span className="text-xs text-gray-500">(Your profile must be public)</span>
+                        </p>
+
+                        <form onSubmit={handleSteamSync} className="space-y-4">
+                            <div>
+                                <input
+                                    type="text"
+                                    placeholder="Steam ID (e.g. 76561198000000000)"
+                                    value={steamId}
+                                    onChange={(e) => setSteamId(e.target.value)}
+                                    className="w-full bg-[#121212] border border-[#333] rounded p-3 text-white focus:border-blue-500 focus:outline-none"
+                                />
+                            </div>
+
+                            {steamError && (
+                                <div className="text-red-400 text-xs bg-red-900/20 p-2 rounded border border-red-900">
+                                    {steamError}
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={isSyncing}
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isSyncing ? 'Syncing...' : 'Fetch Achievements'}
+                            </button>
+                        </form>
+
+                        <div className="mt-4 text-center">
+                            <a href="https://steamid.io/" target="_blank" rel="noreferrer" className="text-xs text-blue-400 hover:underline">
+                                Find my Steam ID
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {isCodexOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
