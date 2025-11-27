@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
     Shield, AlertTriangle, Map as MapIcon, CheckCircle, Skull,
     Save, Info, ChevronDown, ChevronRight, Anchor,
-    ExternalLink, BookOpen, Search, Compass, X, Maximize2, Minimize2,
-    Sparkles, MessageSquare, Send, Copy, ClipboardCheck, Filter, Globe, LogIn
+    BookOpen, Search, X, Maximize2, Minimize2,
+    Sparkles, MessageSquare, Send, Filter, LogIn
 } from 'lucide-react';
+import InteractiveMap from '../../../components/InteractiveMap';
+import { ChecklistItem, Phase, MapRegion } from '../../../types';
 
-/* --- GEMINI API INTEGRATION --- */
-const callGemini = async (prompt, systemInstruction) => {
+
+const callGemini = async (prompt: string, systemInstruction: string): Promise<string | undefined> => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
@@ -41,8 +43,8 @@ const callGemini = async (prompt, systemInstruction) => {
     }
 };
 
-/* --- MAP CONFIGURATION --- */
-const BASE_MAP_URLS = {
+
+const BASE_MAP_URLS: Record<string, string> = {
     white_orchard: 'https://mapgenie.io/witcher-3/maps/white-orchard',
     velen: 'https://mapgenie.io/witcher-3/maps/velen-novigrad',
     skellige: 'https://mapgenie.io/witcher-3/maps/skellige',
@@ -50,7 +52,7 @@ const BASE_MAP_URLS = {
     toussaint: 'https://mapgenie.io/witcher-3/maps/toussaint'
 };
 
-const roadmapData = [
+const roadmapData: Phase[] = [
     {
         id: 'phase-1',
         title: 'Phase I: White Orchard',
@@ -66,7 +68,8 @@ const roadmapData = [
                 shortDesc: 'Yennefer\'s item. Pick up immediately.',
                 longDesc: 'As soon as the opening cutscene ends (Geralt & Vesemir discussion), DO NOT get on your horse yet. Look slightly north of the road. Use Witcher Senses to find a glowing bird skull on the ground.',
                 location: 'Start Point / Crossroads',
-                wikiSearch: 'The Crystal Skull Witcher 3'
+                wikiSearch: 'The Crystal Skull Witcher 3',
+                coordinates: [350, 450]
             },
             {
                 id: 'wo-2',
@@ -76,7 +79,8 @@ const roadmapData = [
                 shortDesc: 'Win the Zoltan card at the Inn.',
                 longDesc: 'Inside the White Orchard Inn, there is a scholar teaching Gwent. You MUST beat him now. If you leave White Orchard without beating him, the Zoltan Chivay card is lost forever.',
                 location: 'White Orchard Inn',
-                wikiSearch: 'Collect \'Em All'
+                wikiSearch: 'Collect \'Em All',
+                coordinates: [400, 500]
             },
             {
                 id: 'wo-3',
@@ -86,7 +90,8 @@ const roadmapData = [
                 shortDesc: 'Find both diagrams (Steel & Silver).',
                 longDesc: '1. Silver Sword: In the Cemetery north of the Mill. In the crypt, loot the corpse. 2. Steel Sword: Ransacked Village, in the Bandit fortress ruins on the hill. Kept in a chest.',
                 location: 'Cemetery & Ransacked Village',
-                wikiSearch: 'Serpentine Steel Sword'
+                wikiSearch: 'Serpentine Steel Sword',
+                coordinates: [600, 600]
             },
             {
                 id: 'wo-4',
@@ -96,7 +101,8 @@ const roadmapData = [
                 shortDesc: 'Brew Swallow for Tomira.',
                 longDesc: 'Talk to the herbalist Tomira. She is trying to save a girl. You must brew the "Swallow" potion and give it to her. This unlocks a followup in Velen later.',
                 location: 'Tomira\'s Hut',
-                wikiSearch: 'On Death\'s Bed'
+                wikiSearch: 'On Death\'s Bed',
+                coordinates: [450, 400]
             },
             {
                 id: 'wo-6',
@@ -106,7 +112,8 @@ const roadmapData = [
                 shortDesc: '6 Places of Power, Smuggler Caches, Nests.',
                 longDesc: 'There are 6 Places of Power here. Getting all 6 buffs at once grants the "Power Overwhelming" achievement. Do this before leaving.',
                 location: 'Entire White Orchard Map',
-                wikiSearch: 'White Orchard Places of Power'
+                wikiSearch: 'White Orchard Places of Power',
+                coordinates: [500, 500]
             }
         ]
     },
@@ -346,7 +353,7 @@ const roadmapData = [
     }
 ];
 
-const IconMap = {
+const IconMap: Record<string, React.ComponentType<any>> = {
     missable: AlertTriangle,
     critical: Skull,
     gear: Shield,
@@ -361,16 +368,14 @@ const IconMap = {
 };
 
 export default function WitcherCommandCenterV5() {
-    const [progress, setProgress] = useState({});
-    const [expandedPhases, setExpandedPhases] = useState({ 'phase-1': true });
-    const [expandedItems, setExpandedItems] = useState({});
+    const [progress, setProgress] = useState<Record<string, boolean>>({});
+    const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({ 'phase-1': true });
+    const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
     const [totalProgress, setTotalProgress] = useState(0);
 
     // MAP & UI STATES
     const [isMapOpen, setIsMapOpen] = useState(false);
-    const [activeMapRegion, setActiveMapRegion] = useState('white_orchard');
-    const [mapMode, setMapMode] = useState('light'); // 'light' or 'full'
-    const [toastMessage, setToastMessage] = useState('');
+    const [activeMapRegion, setActiveMapRegion] = useState<MapRegion>('white_orchard');
     const [searchQuery, setSearchQuery] = useState('');
 
     // GEMINI STATES
@@ -378,8 +383,9 @@ export default function WitcherCommandCenterV5() {
     const [codexQuery, setCodexQuery] = useState('');
     const [codexResponse, setCodexResponse] = useState('');
     const [isCodexLoading, setIsCodexLoading] = useState(false);
-    const [itemAdvice, setItemAdvice] = useState({});
-    const [loadingAdvice, setLoadingAdvice] = useState({});
+    const [itemAdvice, setItemAdvice] = useState<Record<string, string>>({});
+    const [loadingAdvice, setLoadingAdvice] = useState<Record<string, boolean>>({});
+    const [focusedItem, setFocusedItem] = useState<ChecklistItem | null>(null);
 
     useEffect(() => {
         const saved = localStorage.getItem('witcher-command-progress');
@@ -399,50 +405,39 @@ export default function WitcherCommandCenterV5() {
         setTotalProgress(Math.round((completedItems / totalItems) * 100));
     }, [progress]);
 
-    /* --- HANDLERS --- */
 
-    const toggleItemCheck = (e, id) => {
+
+    const toggleItemCheck = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
         setProgress(prev => ({ ...prev, [id]: !prev[id] }));
     };
 
-    const togglePhase = (id, mapRegion) => {
+    const togglePhase = (id: string, mapRegion: MapRegion) => {
         setExpandedPhases(prev => {
             if (!prev[id]) setActiveMapRegion(mapRegion);
             return { ...prev, [id]: !prev[id] };
         });
     };
 
-    const toggleItemDetails = (id) => {
+    const toggleItemDetails = (id: string) => {
         setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
     };
 
     const toggleMap = () => setIsMapOpen(!isMapOpen);
 
-    const showToast = (msg) => {
-        setToastMessage(msg);
-        setTimeout(() => setToastMessage(''), 4000);
-    };
 
-    const openWiki = (e, term) => {
+
+    const openWiki = (e: React.MouseEvent, term: string) => {
         e.stopPropagation();
         window.open(`https://witcher.fandom.com/wiki/Special:Search?query=${encodeURIComponent(term)}`, '_blank');
     };
 
-    // SMART COPY & LOCATE FUNCTION
-    const handleSmartLocate = (e, item, region) => {
+
+    const handleSmartLocate = (e: React.MouseEvent, item: ChecklistItem, region: MapRegion) => {
         e.stopPropagation();
         if (!isMapOpen) setIsMapOpen(true);
         setActiveMapRegion(region);
-
-        let searchTerm = item.mapSearchTerm || item.title;
-        searchTerm = searchTerm.replace(/^(Quest:|Contract:|Gwent:)\s*/i, '');
-
-        navigator.clipboard.writeText(searchTerm).then(() => {
-            showToast(`Copied "${searchTerm}"! Paste in Map Search.`);
-        }).catch(err => {
-            showToast(`Failed to copy. Search for "${searchTerm}"`);
-        });
+        setFocusedItem(item);
     };
 
     const openMapExternal = () => {
@@ -450,8 +445,8 @@ export default function WitcherCommandCenterV5() {
         window.open(url, '_blank');
     };
 
-    /* --- GEMINI HANDLERS --- */
-    const handleConsultVesemir = async (e, item) => {
+
+    const handleConsultVesemir = async (e: React.MouseEvent, item: ChecklistItem) => {
         e.stopPropagation();
         if (itemAdvice[item.id] || loadingAdvice[item.id]) return;
 
@@ -467,7 +462,7 @@ export default function WitcherCommandCenterV5() {
         setLoadingAdvice(prev => ({ ...prev, [item.id]: false }));
     };
 
-    const handleCodexSubmit = async (e) => {
+    const handleCodexSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!codexQuery.trim()) return;
         setIsCodexLoading(true);
@@ -482,43 +477,34 @@ export default function WitcherCommandCenterV5() {
         setIsCodexLoading(false);
     };
 
-    /* --- FILTER LOGIC --- */
-    const getFilteredData = () => {
+
+    const getFilteredData = (): Phase[] => {
         if (!searchQuery) return roadmapData;
         const lowerQuery = searchQuery.toLowerCase();
 
-        return roadmapData.map(phase => {
+        return roadmapData.reduce<Phase[]>((acc, phase) => {
             const filteredItems = phase.items.filter(item =>
                 item.title.toLowerCase().includes(lowerQuery) ||
                 item.shortDesc.toLowerCase().includes(lowerQuery)
             );
 
             if (filteredItems.length > 0) {
-                return { ...phase, items: filteredItems, forceExpand: true };
+                acc.push({ ...phase, items: filteredItems, forceExpand: true });
             }
-            return null;
-        }).filter(Boolean);
+            return acc;
+        }, []);
     };
 
     const filteredData = getFilteredData();
 
-    // Construct Map URL based on mode
-    const currentMapUrl = mapMode === 'light'
-        ? `${BASE_MAP_URLS[activeMapRegion]}?embed=light`
-        : BASE_MAP_URLS[activeMapRegion];
+
 
     return (
         <div className="flex flex-col h-screen bg-[#121212] text-[#e0e0e0] font-sans overflow-hidden">
 
-            {/* Toast Notification */}
-            {toastMessage && (
-                <div className="fixed top-24 right-6 z-50 bg-[#a81c1c] text-white px-6 py-3 rounded shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-right duration-300 border border-red-500">
-                    <ClipboardCheck className="w-5 h-5" />
-                    <span className="font-bold text-sm tracking-wide">{toastMessage}</span>
-                </div>
-            )}
 
-            {/* Top Bar */}
+
+
             <div className="h-16 bg-[#1a1a1a] border-b border-[#333] flex items-center justify-between px-4 md:px-6 shadow-lg z-20 shrink-0">
                 <div className="flex items-center gap-3 md:gap-4">
                     <Shield className="w-6 h-6 md:w-8 md:h-8 text-[#a81c1c]" />
@@ -527,7 +513,7 @@ export default function WitcherCommandCenterV5() {
                     </h1>
                 </div>
 
-                {/* Global Search Bar */}
+
                 <div className="flex-1 max-w-md mx-4 relative hidden sm:block">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#666]" />
                     <input
@@ -564,14 +550,14 @@ export default function WitcherCommandCenterV5() {
                 </div>
             </div>
 
-            {/* Main Content Area */}
+
             <div className="flex flex-1 overflow-hidden relative">
 
-                {/* Left Panel: Checklist */}
+
                 <div className={`flex-1 overflow-y-auto bg-[#121212] transition-all duration-300 ${isMapOpen ? 'hidden md:block md:w-1/2 lg:w-5/12' : 'w-full'}`}>
                     <div className="p-4 md:p-6 space-y-6 pb-24">
 
-                        {/* Mobile Search Bar */}
+
                         <div className="sm:hidden mb-4 relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#666]" />
                             <input
@@ -583,11 +569,8 @@ export default function WitcherCommandCenterV5() {
                             />
                         </div>
 
-                        {/* Status Bar */}
+
                         <div className="flex justify-between items-end border-b border-[#333] pb-4 mb-2">
-                            <div className="text-[#888] italic text-xs font-serif">
-                                {searchQuery ? `Filtering: "${searchQuery}"` : "The Path"}
-                            </div>
                             <div className="text-right">
                                 <div className="text-[10px] text-[#555] uppercase tracking-widest font-bold">Total Completion</div>
                                 <div className="text-xl font-bold text-[#ff4d4d]">{totalProgress}%</div>
@@ -604,7 +587,7 @@ export default function WitcherCommandCenterV5() {
                         {filteredData.map((phase) => (
                             <div key={phase.id} className={`bg-[#1e1e1e] rounded-xl overflow-hidden border border-[#333] ${phase.color}`}>
 
-                                {/* Phase Header */}
+
                                 <div className="flex flex-col md:flex-row md:items-center bg-[#252525] border-b border-[#333] group hover:bg-[#2a2a2a] transition-all">
                                     <button
                                         onClick={() => togglePhase(phase.id, phase.mapRegion)}
@@ -632,7 +615,7 @@ export default function WitcherCommandCenterV5() {
                                     )}
                                 </div>
 
-                                {/* Items */}
+
                                 {(expandedPhases[phase.id] || phase.forceExpand || searchQuery) && (
                                     <div className="p-2 space-y-2 bg-[#181818]">
                                         {phase.items.map((item) => {
@@ -705,7 +688,7 @@ export default function WitcherCommandCenterV5() {
                                                                     </div>
                                                                 )}
 
-                                                                {/* ACTION BUTTONS BAR */}
+
                                                                 <div className="grid grid-cols-3 gap-2">
                                                                     <button
                                                                         onClick={(e) => handleSmartLocate(e, item, phase.mapRegion)}
@@ -723,7 +706,7 @@ export default function WitcherCommandCenterV5() {
                                                                     </button>
                                                                     <button
                                                                         onClick={(e) => handleConsultVesemir(e, item)}
-                                                                        disabled={isLoading || advice}
+                                                                        disabled={!!(isLoading || advice)}
                                                                         className={`
                                       flex items-center justify-center gap-2 py-2 rounded text-xs transition-colors font-medium border
                                       ${advice
@@ -764,18 +747,15 @@ export default function WitcherCommandCenterV5() {
                     </div>
                 </div>
 
-                {/* Right Panel: Map Frame */}
+
                 <div className={`
           absolute inset-0 z-30 bg-[#121212] transition-transform duration-300 md:relative md:inset-auto md:translate-x-0 flex flex-col
           ${isMapOpen ? 'translate-x-0 md:w-1/2 lg:w-7/12 border-l border-[#333]' : 'translate-x-full md:hidden w-0'}
         `}>
-                    {/* Map Header */}
+
                     <div className="h-10 bg-[#1a1a1a] flex items-center justify-between px-3 border-b border-[#333]">
                         <span className="text-xs font-bold text-[#888] uppercase tracking-wider flex items-center gap-2">
                             Interactive Map
-                            <span className="text-[#444] text-[9px] bg-[#222] px-1 rounded">
-                                {mapMode === 'light' ? 'LITE' : 'FULL'}
-                            </span>
                         </span>
                         <div className="flex gap-2">
                             <button
@@ -795,41 +775,17 @@ export default function WitcherCommandCenterV5() {
                     </div>
 
                     <div className="flex-1 bg-black relative w-full h-full overflow-hidden">
-                        <iframe
-                            src={currentMapUrl}
-                            className="w-full h-full absolute inset-0"
-                            style={{ border: 0 }}
-                            allowFullScreen
-                            title="Witcher 3 Map"
+                        <InteractiveMap
+                            activeMapRegion={activeMapRegion}
+                            items={filteredData.flatMap(phase => phase.items)}
+                            focusedItem={focusedItem}
                         />
-
-                        {/* Overlay Controls */}
-                        <div className="absolute bottom-4 left-4 z-20 flex flex-col gap-2 pointer-events-none">
-                            <div className="bg-black/90 backdrop-blur text-white text-[10px] px-3 py-2 rounded border border-white/20 shadow-xl flex items-center gap-2 pointer-events-auto">
-                                <Search className="w-3 h-3 text-[#ccc]" />
-                                <span>
-                                    {mapMode === 'light'
-                                        ? '1. Click "Locate" 2. Open External'
-                                        : 'Click "Search" in map, then Ctrl+V'
-                                    }
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="absolute bottom-4 right-4 z-20 pointer-events-auto">
-                            <button
-                                onClick={() => setMapMode(prev => prev === 'light' ? 'full' : 'light')}
-                                className="bg-[#2a2a2a] hover:bg-[#444] text-white text-[10px] font-bold uppercase px-3 py-2 rounded border border-[#555] shadow-lg transition-colors"
-                            >
-                                Switch to {mapMode === 'light' ? 'Full Site' : 'Lite Mode'}
-                            </button>
-                        </div>
                     </div>
                 </div>
 
             </div>
 
-            {/* CODEX MODAL (GEMINI) */}
+
             {isCodexOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
                     <div className="bg-[#1e1e1e] border border-[#444] rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[80vh]">
